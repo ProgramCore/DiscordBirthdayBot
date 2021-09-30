@@ -24,7 +24,7 @@ namespace BirthdayBot.Services
             await Client.WaitForReadyAsync(stoppingToken);
             Logger.LogInformation("Client is ready!");
 
-            await Client.SetGameAsync("The Calendar", null, ActivityType.Watching);
+            await Client.SetGameAsync("the calendar", null, ActivityType.Watching);
         }
     }
 }

@@ -40,12 +40,13 @@ namespace BirthdayBot.Modules
                 return;
             }
 
+#if !DEBUG
             if (await UserBDayIsRegistered(user))
             {
                 await Context.Channel.SendMessageAsync($"{user.Username} is already registered");
                 return;
             }
-
+#endif
             var newUser = new User(user);
             
             if(!newUser.TryParseBirthday(datestr))
@@ -80,11 +81,14 @@ namespace BirthdayBot.Modules
 
             var user = Context.User as SocketGuildUser;
 
+#if !DEBUG
+
             if (await UserBDayIsRegistered(user))
             {
                 await Context.Channel.SendMessageAsync($"{user.Username} is already registered");
                 return;
             }
+#endif
 
             var userbday = new User(user);
 
@@ -147,50 +151,60 @@ namespace BirthdayBot.Modules
         [Alias("up")]
         public async Task UpcomingBDay(int months = 1)
         {
-            if(months < 1)
+            if (months < 1)
             {
                 months = 1;
             }
-            else if(months > 12)
+            else if (months > 12)
             {
                 months = 12;
             }
 
             var guild = bdayService.GetGuild(Context.Guild.Id);
 
-            if(guild == null)
+            if (guild == null)
             { return; }
 
-            if(guild.RegisteredUsers.Count() == 0)
+            if (guild.RegisteredUsers.Count() == 0)
             {
                 var prefix = config["prefix"];
                 await Context.Channel.SendMessageAsync($"No birthdays added yet! To add, execute [{prefix}add <@mention> <mm/dd>]");
                 return;
             }
 
-            var list = guild.RegisteredUsers.Where(b => b.Birthday.Date.CompareTo(DateTime.Now.AddMonths(months).Date) < 0 
-                                                     && b.Birthday.Date.CompareTo(DateTime.Now.Date) >= 0)
-                                            .ToList();
-            list = list.OrderBy(b => b.Birthday).ToList();
-            
+            var upList = new List<UpcomingBDay>();
+            var maxDay = DateTime.Today.DayOfYear + (months * 31);
+
+            foreach(var user in guild.RegisteredUsers)
+            {
+                var up = new UpcomingBDay(user);
+
+                if(up.ModifiedDayOfYear <= maxDay)
+                {
+                    upList.Add(up);
+                }
+            }
+
+            upList.Sort((u1, u2) =>  u1.ModifiedDayOfYear.CompareTo(u2.ModifiedDayOfYear) );
+
             EmbedBuilder embed = null;
 
-            for (int i = 0; i < list.Count(); i++)
+            for (int i = 0; i < upList.Count(); i++)
             {
-                if(i == 0 || i%25 == 0)
+                if (i == 0 || i % 25 == 0)
                 {
-                    if(embed?.Fields.Count > 0)
+                    if (embed?.Fields.Count > 0)
                     {
                         await Context.Channel.SendMessageAsync(null, false, embed.Build());
                     }
 
                     embed = new EmbedBuilder();
-                    
-                    if(i == 0)
+
+                    if (i == 0)
                     {
                         embed.WithTitle("Upcoming Birthdays   🎂");
-                        
-                        if(months == 1)
+
+                        if (months == 1)
                         {
                             embed.WithDescription("within the next month");
                         }
@@ -201,11 +215,11 @@ namespace BirthdayBot.Modules
                     }
                 }
 
-                var user = list[i];
-                embed.AddField(user.Username, user.Birthday.ToString("MM/dd"), true);
+                var user = upList[i];
+                embed.AddField(user.User.Username, user.User.Birthday.ToString("MM/dd"), true);
             }
 
-            if(embed?.Fields.Count > 0)
+            if (embed?.Fields.Count > 0)
             {
                 await Context.Channel.SendMessageAsync(null, false, embed.Build());
             }

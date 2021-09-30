@@ -35,9 +35,8 @@ namespace BirthdayBot.Models
 
 
             DateTime conv;
-            var culture = CultureInfo.GetCultureInfo("en");
 
-            if (DateTime.TryParse(strDate, culture, DateTimeStyles.None, out conv))
+            if (DateTime.TryParse(strDate, CultureInfo.GetCultureInfo("en"), DateTimeStyles.None, out conv))
             {
                 Birthday = conv;
                 return true;

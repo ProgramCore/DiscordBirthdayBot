@@ -33,6 +33,7 @@ namespace BirthdayBot.Services
             LoadList();
             Client = client;
             Client.Ready += Client_Ready;
+            Client.JoinedGuild += Client_JoinedGuild;
             Client.LeftGuild += Client_LeftGuild;
             InitHourOfDayCheck();
         }
@@ -47,6 +48,13 @@ namespace BirthdayBot.Services
                     checkHour = val;
                 }
             }
+        }
+
+        private async Task Client_JoinedGuild(SocketGuild arg)
+        {
+            AddNewGuild(arg);
+            await SaveListAsync();
+            await arg.DefaultChannel.SendMessageAsync($"Thanks for inviting me! To get started on adding birthdays, first use the command {config["prefix"]}set on a text channel to set this as the default channel or it will use the first channel on the server. Then type the command {config["prefix"]}add <@mention> <mm/dd> to add a birthday");
         }
 
         private async Task Client_LeftGuild(SocketGuild arg)
@@ -81,24 +89,24 @@ namespace BirthdayBot.Services
 
         private async Task TimeTick()
         {
-            var birthdays = new List<Tuple<User, BDayGuild>>();
+            var birthdaysToday = new List<AlertBirthday>();
 
             foreach (var guild in Guilds)
             {
-                var list = guild.RegisteredUsers.Where(u => u.Birthday.Date.CompareTo(DateTime.Now.Date) == 0).ToList();
+                var list = guild.RegisteredUsers.Where(u => u.Birthday.DayOfYear == DateTime.Now.DayOfYear).ToList();
 
                 foreach (var user in list)
                 {
-                    birthdays.Add(new Tuple<User, BDayGuild>(user, guild));
+                    birthdaysToday.Add(new AlertBirthday(user, guild));//new Tuple<User, BDayGuild>(user, guild));
                 }
             }
 
-            if (birthdays.Count == 0)
+            if (birthdaysToday.Count == 0)
             { return; }
 
             var rand = new Random();
 
-            foreach (var bday in birthdays)
+            foreach (var bday in birthdaysToday)
             {
                 var embed = new Discord.EmbedBuilder();
                 var urls = await Modules.Entertainment.GetBirthdayUrls(config["tokens:giphy"]);
@@ -116,30 +124,26 @@ namespace BirthdayBot.Services
                     embed.WithDescription("We wish you all the best on your special day. Do your thing, eat some cake, spoil yourself, and make today all yours. You deserve it. 🍰");
                 }
 
-                var channel = Client.GetChannel(bday.Item2.DefaultChannelID) as Discord.IMessageChannel;
+                var channel = Client.GetChannel(bday.ChannelID) as Discord.IMessageChannel;
 
                 if (channel == null)
                 {
-                    var guild = Client.GetGuild(bday.Item2.GuildID);
+                    var guild = Client.GetGuild(bday.GuildID);
                     channel = Client.GetChannel(guild.DefaultChannel.Id) as Discord.IMessageChannel;
+                    await SetDefaultChannel(bday.GuildID, channel.Id);
                 }
 
-                await channel.SendMessageAsync($"Happy Birthday {bday.Item1.GetMention()}!", false, embed.Build());
-                //bday.Item1.Birthday = bday.Item1.Birthday.AddYears(1);
+                await channel.SendMessageAsync($"Happy Birthday {bday.User.GetMention()}!", false, embed.Build());
             }
-
-            await SaveListAsync();
         }
 
         private async Task SynchronizedGuilds()
         {
-            var allGuilds = Client.Guilds;
-
-            foreach (var guild in allGuilds)
+            foreach (var guild in Client.Guilds)
             {
                 if (!Guilds.Any(g => g.GuildID == guild.Id))
                 {
-                    AddNewGuild(guild.Id, guild.DefaultChannel.Id);
+                    AddNewGuild(guild);
                 }
             }
 
@@ -147,7 +151,7 @@ namespace BirthdayBot.Services
 
             foreach (var guild in Guilds)
             {
-                if (!allGuilds.Any(g => g.Id == guild.GuildID))
+                if (!Client.Guilds.Any(g => g.Id == guild.GuildID))
                 {
                     removedGuilds.Add(guild.GuildID);
                 }
@@ -161,12 +165,9 @@ namespace BirthdayBot.Services
             await SaveListAsync();
         }
 
-        public void AddNewGuild(ulong guildID, ulong defaultChannel)
+        public void AddNewGuild(SocketGuild sguild)
         {
-            var guild = new BDayGuild(guildID);
-            guild.DefaultChannelID = defaultChannel;
-
-            Guilds.Add(guild);
+            Guilds.Add(new BDayGuild(sguild.Id, sguild.DefaultChannel.Id));
         }
 
         public async Task AddBirthday(User bday, ulong guildID)
@@ -178,41 +179,29 @@ namespace BirthdayBot.Services
             }
         }
 
-        private void InsertBirthdayOrdered(User user, ulong guildID)
+        private void InsertBirthdayOrdered(User newUser, ulong guildID)
         {
-            /*if(user.Birthday.DayOfYear < DateTime.Now.DayOfYear)
-            {
-                user.Birthday = user.Birthday.Date.AddYears(1);
-            }*/
-
             var guild = GetGuild(guildID);
 
             if(guild == null)
             { return; }
 
-            if (guild.RegisteredUsers.Count == 0)
+            var added = false;
+            for (int i = 0; i < guild.RegisteredUsers.Count(); i++)
             {
-                guild.RegisteredUsers.Add(user);
+                var curUser = guild.RegisteredUsers[i];
+
+                if (curUser.Birthday.DayOfYear > newUser.Birthday.DayOfYear)
+                {
+                    guild.RegisteredUsers.Insert(i, newUser);
+                    added = true;
+                    break;
+                }
             }
-            else
+
+            if (!added)
             {
-                var added = false;
-                for (int i = 0; i < guild.RegisteredUsers.Count(); i++)
-                {
-                    var cur = guild.RegisteredUsers[i];
-
-                    if (cur.Birthday.DayOfYear > user.Birthday.DayOfYear)
-                    {
-                        guild.RegisteredUsers.Insert(i, user);
-                        added = true;
-                        break;
-                    }
-                }
-
-                if (!added)
-                {
-                    guild.RegisteredUsers.Add(user);
-                }
+                guild.RegisteredUsers.Add(newUser);
             }
         }
 
@@ -241,13 +230,13 @@ namespace BirthdayBot.Services
             await File.WriteAllTextAsync(FilePath, json);
         }
 
-        private Task SaveList()
+        /*private Task SaveList()
         {
             var root = new Root() { Guilds = this.Guilds };
             var json = JsonConvert.SerializeObject(root);
             File.WriteAllText(FilePath, json);
             return Task.CompletedTask;
-        }
+        }*/
 
         /*public async Task LoadListAsync()
         {
@@ -273,24 +262,6 @@ namespace BirthdayBot.Services
                 if (root != null)
                 {
                     Guilds = root.Guilds;
-                    /*var now = DateTime.Now;
-
-                    foreach(var guild in Guilds)
-                    {
-                        foreach (var user in guild.RegisteredUsers)
-                        {
-                            if (user.Birthday.DayOfYear < now.DayOfYear)
-                            {
-                                user.Birthday = new DateTime(now.Year + 1, user.Birthday.Month, user.Birthday.Day);
-                            }
-                            else
-                            {
-                                user.Birthday = new DateTime(now.Year, user.Birthday.Month, user.Birthday.Day);
-                            }
-                        }
-                    }
-
-                    SaveList();*/
                 }
             }
 
@@ -315,9 +286,9 @@ namespace BirthdayBot.Services
             if(guild == null)
             { return Task.FromResult(false); }
 
-            var list = guild.RegisteredUsers.Any(u => u.ID == userid);
+            var doesContain = guild.RegisteredUsers.Any(u => u.ID == userid);
 
-            return Task.FromResult(list);
+            return Task.FromResult(doesContain);
         }
 
         private class Root

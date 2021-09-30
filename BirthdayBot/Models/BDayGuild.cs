@@ -9,9 +9,10 @@ namespace BirthdayBot.Models
     public class BDayGuild
     {
         private BDayGuild() { }
-        public BDayGuild(ulong guildID)
+        public BDayGuild(ulong guildID, ulong channelID)
         {
             GuildID = guildID;
+            DefaultChannelID = channelID;
         }
 
         public ulong GuildID { get; }
