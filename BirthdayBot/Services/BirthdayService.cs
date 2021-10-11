@@ -21,7 +21,7 @@ namespace BirthdayBot.Services
         public string FilePath { get; set; }
         DiscordSocketClient Client { get; set; }
         private System.Timers.Timer dayTimer;
-        private const double TIME_INTERVAL = 45000;//3600000;//86400000;
+        private const double TIME_INTERVAL = 60000;//3600000;//86400000;
         private IConfiguration config;
         private int checkHour = 12;
         private const int CHECK_MIN = 0;
@@ -31,11 +31,18 @@ namespace BirthdayBot.Services
             config = _config;
             FilePath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), @"_birthdays.txt");
             LoadList();
+
+            InitClient(client);
+            InitHourOfDayCheck();
+            InitTimer();
+        }
+
+        private void InitClient(DiscordSocketClient client)
+        {
             Client = client;
             Client.Ready += Client_Ready;
             Client.JoinedGuild += Client_JoinedGuild;
             Client.LeftGuild += Client_LeftGuild;
-            InitHourOfDayCheck();
         }
 
         private void InitHourOfDayCheck()
@@ -67,14 +74,16 @@ namespace BirthdayBot.Services
         {
             await SynchronizedGuilds();
 
-            dayTimer = new System.Timers.Timer(TIME_INTERVAL);
-            dayTimer.Elapsed += Timer_Elapsed;
-
-            if(DateTime.Now.Hour >= checkHour) //Time has passed already for the check when the client was initialized
+            if (DateTime.Now.Hour >= checkHour) //Time has passed already for the check when the client was initialized
             {
                 await TimeTick();
             }
+        }
 
+        private void InitTimer()
+        {
+            dayTimer = new System.Timers.Timer(TIME_INTERVAL);
+            dayTimer.Elapsed += Timer_Elapsed;
             dayTimer.Enabled = true;
             dayTimer.Start();
         }
@@ -97,7 +106,7 @@ namespace BirthdayBot.Services
 
                 foreach (var user in list)
                 {
-                    birthdaysToday.Add(new AlertBirthday(user, guild));//new Tuple<User, BDayGuild>(user, guild));
+                    birthdaysToday.Add(new AlertBirthday(user, guild));
                 }
             }
 
@@ -110,7 +119,6 @@ namespace BirthdayBot.Services
             {
                 var embed = new Discord.EmbedBuilder();
                 var urls = await Modules.Entertainment.GetBirthdayUrls(config["tokens:giphy"]);
-
                 
                 embed.WithTitle(BirthdayGreeting.GetRandomIntro(rand));
                 
