@@ -1,0 +1,17 @@
+﻿# This is used to initiate a command with the bot
+prefix: '~'
+
+# This is the hour of day that the bot will check for a birthday. Pick a number between 0 - 23, where 0 is midnight 
+hour_of_day_to_check_for_birthdays: 12
+
+# Allow the bot to send new members a message to greet them and ask for their birthday. true allows the bot, false does not
+greet: true
+
+# Bot tokens
+tokens:
+ 
+ discord: '[Enter Discord Bot Token]'
+
+ # Optional but highly recommended. Otherwise everyone gets the same birthday message with no image!
+ # You can create a developer key at https://developers.giphy.com/
+ giphy: '[Enter Giphy Developer API KEY]'
