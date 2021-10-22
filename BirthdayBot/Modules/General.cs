@@ -50,7 +50,6 @@ namespace BirthdayBot.Modules
             builder.WithTitle($"{Context.Client.CurrentUser.Username} Commands");
             builder.WithThumbnailUrl(Context.Client.CurrentUser.GetAvatarUrl() ?? Context.Client.CurrentUser.GetDefaultAvatarUrl());
             builder.WithDescription("These are the commands to make me work");
-            builder.AddField("Set default channel", $"{prefix}set", false);
             builder.AddField("Add another's birthday", $"{prefix}add <@mention> <birthday mm/dd>", false);
             builder.AddField("Add your birthday", $"{prefix}addme <birthday mm/dd>", false);
             builder.AddField("Delete your birthday", $"{prefix}delete [or {prefix}del]", false);
