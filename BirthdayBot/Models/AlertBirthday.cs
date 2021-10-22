@@ -7,17 +7,16 @@ using System.Threading.Tasks;
 
 namespace BirthdayBot.Models
 {
-    public class AlertBirthday
+    public class AlertBirthday : GuildCommunicationBase
     {
         public AlertBirthday(User user, BDayGuild guild)
         {
             User = user;
-            ChannelID = guild.DefaultChannelID;
+            ChannelID = guild.ChannelID;
             GuildID = guild.GuildID;
         }
 
         public User User { get; set; }
-        public ulong ChannelID { get; set; }
-        public ulong GuildID { get; set; }
+        
     }
 }

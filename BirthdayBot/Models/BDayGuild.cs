@@ -6,17 +6,14 @@ using System.Threading.Tasks;
 
 namespace BirthdayBot.Models
 {
-    public class BDayGuild
+    public class BDayGuild : GuildCommunicationBase
     {
         private BDayGuild() { }
         public BDayGuild(ulong guildID, ulong channelID)
         {
             GuildID = guildID;
-            DefaultChannelID = channelID;
+            ChannelID = channelID;
         }
-
-        public ulong GuildID { get; }
-        public ulong DefaultChannelID { get; set; }
 
         public List<User> RegisteredUsers { get; set; } = new List<User>();
     }

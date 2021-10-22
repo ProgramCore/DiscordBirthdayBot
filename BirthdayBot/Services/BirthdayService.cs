@@ -21,7 +21,7 @@ namespace BirthdayBot.Services
         public string FilePath { get; set; }
         DiscordSocketClient Client { get; set; }
         private System.Timers.Timer dayTimer;
-        private const double TIME_INTERVAL = 60000;//3600000;//86400000;
+        private const double TIME_INTERVAL = 60000;
         private IConfiguration config;
         private int checkHour = 12;
         private const int CHECK_MIN = 0;
@@ -98,6 +98,21 @@ namespace BirthdayBot.Services
 
         private async Task TimeTick()
         {
+            var birthdaysToday = GetTodaysBirthdays();
+
+            if (birthdaysToday.Count == 0)
+            { return; }
+
+            var rand = new Random();
+
+            foreach (var bday in birthdaysToday)
+            {
+                await AlertGuildOfBirthday(bday, rand);
+            }
+        }
+
+        private List<AlertBirthday> GetTodaysBirthdays()
+        {
             var birthdaysToday = new List<AlertBirthday>();
 
             foreach (var guild in Guilds)
@@ -110,39 +125,36 @@ namespace BirthdayBot.Services
                 }
             }
 
-            if (birthdaysToday.Count == 0)
-            { return; }
+            return birthdaysToday;
+        }
 
-            var rand = new Random();
+        private async Task AlertGuildOfBirthday(AlertBirthday bday, Random rand)
+        {
+            var embed = new Discord.EmbedBuilder();
+            var urls = await Modules.Entertainment.GetBirthdayUrls(config["tokens:giphy"]);
 
-            foreach (var bday in birthdaysToday)
+            embed.WithTitle(BirthdayGreeting.GetRandomIntro(rand));
+
+            if (!string.IsNullOrWhiteSpace(urls.ImageURL))
             {
-                var embed = new Discord.EmbedBuilder();
-                var urls = await Modules.Entertainment.GetBirthdayUrls(config["tokens:giphy"]);
-                
-                embed.WithTitle(BirthdayGreeting.GetRandomIntro(rand));
-                
-                if(!string.IsNullOrWhiteSpace(urls.ImageURL))
-                {
-                    embed.WithImageUrl(urls.ImageURL);
-                    embed.WithFooter("Powered By GIPHY");
-                }
-                else
-                {
-                    embed.WithDescription("We wish you all the best on your special day. Do your thing, eat some cake, spoil yourself, and make today all yours. You deserve it. 🍰");
-                }
-
-                var channel = Client.GetChannel(bday.ChannelID) as Discord.IMessageChannel;
-
-                if (channel == null)
-                {
-                    var guild = Client.GetGuild(bday.GuildID);
-                    channel = Client.GetChannel(guild.DefaultChannel.Id) as Discord.IMessageChannel;
-                    await SetDefaultChannel(bday.GuildID, channel.Id);
-                }
-
-                await channel.SendMessageAsync($"Happy Birthday {bday.User.GetMention()}!", false, embed.Build());
+                embed.WithImageUrl(urls.ImageURL);
+                embed.WithFooter("Powered By GIPHY");
             }
+            else
+            {
+                embed.WithDescription("We wish you all the best on your special day. Do your thing, eat some cake, spoil yourself, and make today all yours. You deserve it. 🍰");
+            }
+
+            var channel = Client.GetChannel(bday.ChannelID) as Discord.IMessageChannel;
+
+            if (channel == null)
+            {
+                var guild = Client.GetGuild(bday.GuildID);
+                channel = Client.GetChannel(guild.DefaultChannel.Id) as Discord.IMessageChannel;
+                await SetDefaultChannel(bday.GuildID, channel.Id);
+            }
+
+            await channel.SendMessageAsync($"Happy Birthday {bday.User.GetMention()}!", false, embed.Build());
         }
 
         private async Task SynchronizedGuilds()
@@ -238,28 +250,6 @@ namespace BirthdayBot.Services
             await File.WriteAllTextAsync(FilePath, json);
         }
 
-        /*private Task SaveList()
-        {
-            var root = new Root() { Guilds = this.Guilds };
-            var json = JsonConvert.SerializeObject(root);
-            File.WriteAllText(FilePath, json);
-            return Task.CompletedTask;
-        }*/
-
-        /*public async Task LoadListAsync()
-        {
-            if(File.Exists(FilePath))
-            {
-                var jsonStr = await File.ReadAllTextAsync(FilePath);
-                var root = JsonConvert.DeserializeObject<Root>(jsonStr);
-
-                if(root != null)
-                {
-                    Birthdays = root.Birthdays;
-                }
-            }
-        }*/
-
         private Task LoadList()
         {
             if (File.Exists(FilePath))
@@ -299,11 +289,6 @@ namespace BirthdayBot.Services
             return Task.FromResult(doesContain);
         }
 
-        private class Root
-        {
-            public List<BDayGuild> Guilds { get; set; }
-        }
-
         public BDayGuild GetGuild(ulong id)
         {
             return Guilds.First(g => g.GuildID == id);
@@ -312,8 +297,13 @@ namespace BirthdayBot.Services
         public async Task SetDefaultChannel(ulong guildid, ulong channelid)
         {
             var guild = GetGuild(guildid);
-            guild.DefaultChannelID = channelid;
+            guild.ChannelID = channelid;
             await SaveListAsync();
+        }
+
+        private class Root
+        {
+            public List<BDayGuild> Guilds { get; set; }
         }
     }
 }
